@@ -39,10 +39,6 @@
         /* ---------------- General Styles ---------------- */
         * { box-sizing: border-box; font-family: 'Noto Sans Gujarati', sans-serif; }
         body { background-color: var(--bg-body); margin: 0; padding: 0; color: var(--text-main); transition: 0.3s; position: relative; min-height: 100vh; }
-        
-        /* FULL SCREEN LIVE BACKGROUND */
-        .full-live-bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; background: linear-gradient(45deg, var(--live1), var(--bg-body), var(--live2), var(--bg-body)); background-size: 300% 300%; animation: FullScreenLive 10s ease infinite; opacity: 0.15; }
-        @keyframes FullScreenLive { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 
         /* Login Screen */
         #login-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%); display: flex; justify-content: center; align-items: center; z-index: 2000; }
@@ -111,7 +107,6 @@
 </head>
 <body>
 
-<div class="full-live-bg"></div>
 <div id="toast-box"><i class="fas fa-info-circle"></i> <span id="toast-msg">Message</span></div>
 
 <div id="login-screen">
@@ -135,8 +130,8 @@
         <div class="filter-section">
             <div style="flex: 1; min-width: 250px;">
                 <label><i class="far fa-calendar-alt"></i> મહિનો અને વર્ષ:</label>
-                <select id="month-filter" onchange="loadAllData()" style="margin-left: 10px; width: auto; display: inline-block;"></select>
-                <button onclick="fetchCloudData()" class="btn-sm" style="background:var(--primary); margin-left:10px;"><i class="fas fa-sync-alt"></i> Refresh Cloud</button>
+                <select id="month-filter" onchange="renderFinance()" style="margin-left: 10px; width: auto; display: inline-block;"></select>
+                <button onclick="fetchCloudData()" class="btn-sm" style="background:var(--primary); margin-left:10px; padding: 8px 12px;"><i class="fas fa-sync-alt"></i> Refresh Cloud</button>
             </div>
             <div style="flex: 1; min-width: 250px; text-align: right;">
                 <label><i class="fas fa-paint-brush"></i> વેબસાઈટ થીમ:</label>
@@ -224,7 +219,7 @@
 </div>
 
 <script>
-    // --- GOOGLE APPS SCRIPT URL ---
+    // --- TAMARI NAVI GOOGLE SCRIPT URL ---
     const CLOUD_URL = "https://script.google.com/macros/s/AKfycbx9y-LTYOkrWtAjO92tR1zpJrqu_fowBDwL4rDnCa8qNIGHdgXH7RMR8cKsA6qwEv5hwA/exec";
     
     let db = { finance: [] };
@@ -236,6 +231,16 @@
         t.className = type === 'success' ? 'toast-success show' : 'toast-error show';
         m.innerText = msg;
         setTimeout(() => { t.classList.remove('show'); }, 3000);
+    }
+
+    // --- Format Date Helper (Fixes the date fetching issue) ---
+    function formatDateString(dateStr) {
+        if(!dateStr) return "";
+        if(dateStr.includes('T')) { // If it comes as a timestamp from Google Sheet
+            let d = new Date(dateStr);
+            return ("0" + d.getDate()).slice(-2) + "/" + ("0"+(d.getMonth()+1)).slice(-2) + "/" + d.getFullYear();
+        }
+        return dateStr;
     }
 
     window.onload = function() {
@@ -259,7 +264,6 @@
             document.getElementById('main-app').style.display = 'block';
             showToast('લોગિન સફળ!', 'success');
             await fetchCloudData(); 
-            initFilter();
         } else { showToast('ખોટો પાસવર્ડ!', 'error'); }
     }
 
@@ -268,12 +272,18 @@
         try {
             const response = await fetch(CLOUD_URL);
             const data = await response.json();
-            db.finance = data;
+            // Format dates correctly from cloud
+            db.finance = data.map(item => ({
+                ...item,
+                date: formatDateString(item.date)
+            }));
+            initFilter();
             renderFinance();
             showToast('સિંક પૂર્ણ થયું! ✅', 'success');
         } catch (e) {
             showToast('ડેટા લોડ એરર ❌', 'error');
             db = JSON.parse(localStorage.getItem('alAkshaDB')) || { finance: [] };
+            initFilter();
             renderFinance();
         }
     }
@@ -291,8 +301,9 @@
         const now = new Date();
         const currentMonthYear = months[now.getMonth()] + " " + now.getFullYear();
         let options = [currentMonthYear];
+        
         db.finance.forEach(item => {
-            if(item.date) {
+            if(item.date && item.date.includes('/')) {
                 let parts = item.date.split('/');
                 if(parts.length === 3) {
                     let label = months[parseInt(parts[1])-1] + " " + parts[2];
@@ -300,11 +311,10 @@
                 }
             }
         });
+        
         select.innerHTML = '';
         options.forEach(opt => { select.innerHTML += `<option value="${opt}" ${opt === currentMonthYear ? 'selected' : ''}>${opt}</option>`; });
     }
-
-    function loadAllData() { renderFinance(); }
 
     function autoFillFinance() {
         let v = document.getElementById('f-quick').value;
@@ -319,23 +329,35 @@
 
     async function addFinance(e) {
         e.preventDefault();
+        
+        // Use DD/MM/YYYY format explicitly
+        let today = new Date();
+        let formattedDate = ("0" + today.getDate()).slice(-2) + "/" + ("0"+(today.getMonth()+1)).slice(-2) + "/" + today.getFullYear();
+
         const entry = {
-            date: new Date().toLocaleDateString('en-GB'),
+            date: formattedDate,
             desc: document.getElementById('f-desc').value,
             type: document.getElementById('f-type').value,
             mode: document.getElementById('f-mode').value,
             amount: parseFloat(document.getElementById('f-amount').value),
             govFee: parseFloat(document.getElementById('f-gov').value) || 0
         };
+        
         showToast('ક્લાઉડમાં સેવ થાય છે... ⏳', 'success');
+        
+        // Add locally first for instant feedback
+        db.finance.push(entry);
+        localStorage.setItem('alAkshaDB', JSON.stringify(db));
+        document.getElementById('finance-form').reset();
+        initFilter();
+        renderFinance();
+
         try {
             await fetch(CLOUD_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(entry) });
-            db.finance.push(entry);
-            localStorage.setItem('alAkshaDB', JSON.stringify(db));
-            document.getElementById('finance-form').reset();
-            renderFinance();
             showToast('સેવ થઈ ગયું! ✅', 'success');
-        } catch(err) { showToast('સેવ એરર ❌', 'error'); }
+        } catch(err) { 
+            showToast('માત્ર લોકલમાં સેવ થયું ❌', 'error'); 
+        }
     }
 
     function renderFinance() {
@@ -346,29 +368,38 @@
         tb.innerHTML = '';
         let chartData = { income: 0, expense: 0, profit: 0, services: {} };
 
+        if (!db.finance || db.finance.length === 0) {
+            tb.innerHTML = '<tr><td colspan="7" style="text-align:center;">કોઈ એન્ટ્રી મળી નથી.</td></tr>';
+            updateCharts(chartData);
+            return;
+        }
+
         db.finance.forEach((item, i) => {
-            if(item.date) {
+            if(item.date && item.date.includes('/')) {
                 let parts = item.date.split('/');
-                let itemMonthYear = months[parseInt(parts[1])-1] + " " + parts[2];
-                if(itemMonthYear === filterVal) {
-                    let p = (item.type === 'income') ? item.amount - item.govFee : 0;
-                    if(item.type === 'income') {
-                        item.mode === 'cash' ? cash += item.amount : upi += item.amount; profit += p;
-                        chartData.income += item.amount; chartData.profit += p;
-                        chartData.services[item.desc] = (chartData.services[item.desc] || 0) + 1;
-                    } else if(item.type === 'expense') {
-                        item.mode === 'cash' ? cash -= item.amount : upi -= item.amount; profit -= item.amount;
-                        chartData.expense += item.amount;
-                    } else if(item.type === 'udhaar') {
-                        udhaar += item.amount; item.mode === 'cash' ? cash -= item.amount : upi -= item.amount;
+                if(parts.length === 3) {
+                    let itemMonthYear = months[parseInt(parts[1])-1] + " " + parts[2];
+                    if(itemMonthYear === filterVal) {
+                        let p = (item.type === 'income') ? item.amount - item.govFee : 0;
+                        if(item.type === 'income') {
+                            item.mode === 'cash' ? cash += item.amount : upi += item.amount; profit += p;
+                            chartData.income += item.amount; chartData.profit += p;
+                            chartData.services[item.desc] = (chartData.services[item.desc] || 0) + 1;
+                        } else if(item.type === 'expense') {
+                            item.mode === 'cash' ? cash -= item.amount : upi -= item.amount; profit -= item.amount;
+                            chartData.expense += item.amount;
+                        } else if(item.type === 'udhaar') {
+                            udhaar += item.amount; item.mode === 'cash' ? cash -= item.amount : upi -= item.amount;
+                        }
+                        let typeColor = item.type === 'income' ? '#34a853' : (item.type === 'expense' ? '#ea4335' : '#f2994a');
+                        let waMsg = encodeURIComponent(`AL-AKSHA COMPUTER CENTRE\nતમારું બિલ/ઉધાર: ₹${item.amount}.`);
+                        let waBtn = item.type === 'income' || item.type === 'udhaar' ? `<button class="btn-sm btn-wa" onclick="window.open('https://wa.me/?text=${waMsg}')"><i class="fab fa-whatsapp"></i></button>` : '';
+                        tb.innerHTML += `<tr><td>${item.date}</td><td style="font-weight:bold;" class="search-target">${item.desc}</td><td style="color:${typeColor}; font-weight:bold;">${item.type}</td><td>${item.mode}</td><td>₹${item.amount}</td><td>₹${p}</td><td><button class="btn-sm btn-print" onclick="generateReceipt(${i})"><i class="fas fa-print"></i></button>${waBtn}<button class="btn-sm btn-del" onclick="delRec(${i})"><i class="fas fa-trash"></i></button></td></tr>`;
                     }
-                    let typeColor = item.type === 'income' ? '#34a853' : (item.type === 'expense' ? '#ea4335' : '#f2994a');
-                    let waMsg = encodeURIComponent(`AL-AKSHA COMPUTER CENTRE\nતમારું બિલ/ઉધાર: ₹${item.amount}.`);
-                    let waBtn = item.type === 'income' || item.type === 'udhaar' ? `<button class="btn-sm btn-wa" onclick="window.open('https://wa.me/?text=${waMsg}')"><i class="fab fa-whatsapp"></i></button>` : '';
-                    tb.innerHTML += `<tr><td>${item.date}</td><td style="font-weight:bold;" class="search-target">${item.desc}</td><td style="color:${typeColor}; font-weight:bold;">${item.type}</td><td>${item.mode}</td><td>₹${item.amount}</td><td>₹${p}</td><td><button class="btn-sm btn-print" onclick="generateReceipt(${i})"><i class="fas fa-print"></i></button>${waBtn}<button class="btn-sm btn-del" onclick="delRec(${i})"><i class="fas fa-trash"></i></button></td></tr>`;
                 }
             }
         });
+        
         document.getElementById('bal-cash').innerText = cash;
         document.getElementById('bal-upi').innerText = upi;
         document.getElementById('bal-profit').innerText = profit;
@@ -400,7 +431,14 @@
         });
     }
 
-    function delRec(i) { if(confirm('ડીલીટ?')) { db.finance.splice(i, 1); localStorage.setItem('alAkshaDB', JSON.stringify(db)); renderFinance(); } }
+    // Note: Delete only removes from local view currently. To delete from Cloud needs Advanced App Script setup.
+    function delRec(i) { 
+        if(confirm('શું તમે ખરેખર ડીલીટ કરવા માંગો છો? (આ માત્ર અત્યાર પૂરતું ડીલીટ થશે, કાયમી ડીલીટ માટે Google Sheet માંથી કાઢવું પડશે)')) { 
+            db.finance.splice(i, 1); 
+            localStorage.setItem('alAkshaDB', JSON.stringify(db)); 
+            renderFinance(); 
+        } 
+    }
 
     function generateReceipt(index) {
         let item = db.finance[index];
