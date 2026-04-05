@@ -219,8 +219,8 @@
 </div>
 
 <script>
-    // --- TAMARI NAVI GOOGLE SCRIPT URL ---
-    const CLOUD_URL = "https://script.google.com/macros/s/AKfycbx9y-LTYOkrWtAjO92tR1zpJrqu_fowBDwL4rDnCa8qNIGHdgXH7RMR8cKsA6qwEv5hwA/exec";
+    // --- UPDATED GOOGLE SCRIPT URL ---
+    const CLOUD_URL = "https://script.google.com/macros/s/AKfycbzkmrWPKrfRLa6Xn63bKhLopEG60bNB01k_SWI0-cWZZuaa4yr3-vPEDtoPgmIpyu1aMQ/exec";
     
     let db = { finance: [] };
     let myPieChart, myBarChart;
@@ -355,6 +355,8 @@
         try {
             await fetch(CLOUD_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(entry) });
             showToast('સેવ થઈ ગયું! ✅', 'success');
+            // Auto fetch after save to ensure sync
+            fetchCloudData(); 
         } catch(err) { 
             showToast('માત્ર લોકલમાં સેવ થયું ❌', 'error'); 
         }
