@@ -277,9 +277,14 @@
     }
 
     async function fetchCloudData() {
-        showToast('Cloud ડેટા લોડ થાય છે... ⏳', 'success');
+        showToast('Cloud માંથી ડેટા લાવી રહ્યા છીએ... ⏳', 'success');
         try {
-            const response = await fetch(CLOUD_URL);
+            // Cache કાઢવા માટે પાછળ ટાઈમ લગાડ્યો છે, જેથી સીધો નવો જ ડેટા આવે
+            let tempUrl = CLOUD_URL + "?t=" + new Date().getTime();
+            const response = await fetch(tempUrl);
+            
+            if (!response.ok) throw new Error("Network Error");
+            
             const data = await response.json();
             
             db.finance = data.map(item => ({
@@ -291,9 +296,10 @@
             
             initFilter();
             renderFinance();
-            showToast('સિંક પૂર્ણ થયું! ✅', 'success');
+            showToast('ડેટા સફળતાપૂર્વક આવી ગયો! ✅', 'success');
         } catch (e) {
-            showToast('ડેટા લોડ એરર ❌', 'error');
+            console.error(e);
+            showToast('Cloud કનેક્શન એરર! લોકલ ડેટા બતાવી રહ્યા છીએ ❌', 'error');
             db = JSON.parse(localStorage.getItem('alAkshaDB')) || { finance: [] };
             initFilter();
             renderFinance();
@@ -360,12 +366,14 @@
         
         showToast('ક્લાઉડમાં સેવ થાય છે... ⏳', 'success');
         
+        // ડેટા લોકલમાં સેવ કરો અને તરત બતાવો
         db.finance.push(entry);
         localStorage.setItem('alAkshaDB', JSON.stringify(db));
         document.getElementById('finance-form').reset();
         initFilter();
         renderFinance();
 
+        // ડેટા Cloud માં મોકલો 
         try {
             await fetch(CLOUD_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(entry) });
             showToast('સેવ થઈ ગયું! ✅', 'success');
@@ -402,7 +410,7 @@
                             let g = parseFloat(item.govFee) || 0;
                             let p = (item.type === 'income') ? a - g : 0;
                             
-                            // રોકડ અને UPI માં પૂરી રકમ (Amount) જ જશે. ફી માત્ર નફામાંથી કપાશે.
+                            // રોકડ અને UPI માં પૂરી રકમ જ જશે
                             if(item.type === 'income') {
                                 item.mode === 'cash' ? cash += a : upi += a; 
                                 profit += p;
@@ -478,7 +486,6 @@
         if(confirm('શું તમે ખરેખર આ એન્ટ્રી ડીલીટ કરવા માંગો છો? (આ એન્ટ્રી Cloud માંથી પણ ડીલીટ થઈ જશે)')) { 
             let item = db.finance[i];
             
-            // Cloud માટે પેલોડ
             const payload = {
                 action: 'delete',
                 date: item.date,
@@ -486,13 +493,11 @@
                 amount: item.amount
             };
 
-            // Local માંથી કાઢો
             db.finance.splice(i, 1); 
             localStorage.setItem('alAkshaDB', JSON.stringify(db)); 
             renderFinance(); 
             showToast('Cloud માંથી ડીલીટ થાય છે...', 'success');
 
-            // Cloud માંથી કાઢો
             try {
                 await fetch(CLOUD_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
                 showToast('એન્ટ્રી કાયમ માટે ડીલીટ થઈ ગઈ! ✅', 'success');
@@ -555,13 +560,11 @@
         let originalTable = document.getElementById('main-table');
         let tableClone = originalTable.cloneNode(true);
 
-        // ડેશબોર્ડના આંકડા બેઠા લેવા
         let tCash = document.getElementById('bal-cash').innerText;
         let tUpi = document.getElementById('bal-upi').innerText;
         let tProfit = document.getElementById('bal-profit').innerText;
         let tUdhaar = document.getElementById('bal-udhaar').innerText;
 
-        // નીચે કુલ હિસાબની લાઈન ઉમેરવા
         let tfoot = document.createElement('tfoot');
         tfoot.innerHTML = `<tr style="background:#e8f0fe; font-weight:bold; border-top:3px solid #1a73e8;">
             <td colspan="4" style="text-align:right; font-size:15px;">મહિનાનો કુલ હિસાબ (Total):</td>
@@ -571,7 +574,6 @@
         </tr>`;
         tableClone.appendChild(tfoot);
 
-        // પ્રિન્ટમાંથી છેલ્લું 'એક્શન' (Delete/Print) વાળું ખાનું કાઢી નાખવા
         let ths = tableClone.querySelectorAll('thead th');
         if(ths.length > 0) ths[ths.length - 1].remove();
 
