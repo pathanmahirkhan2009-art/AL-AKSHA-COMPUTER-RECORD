@@ -108,7 +108,7 @@
 <div id="login-screen">
     <div class="login-box">
         <h2>AL-AKSHA COMPUTER CENTRE<br><span style="font-size:14px; color:#555;">|| Record Register ||</span></h2>
-        <input type="text" id="username-input" placeholder="Username">
+        <input type="text" id="username-input" placeholder="Username ">
         <input type="password" id="password-input" placeholder="Password">
         <button onclick="checkLogin()"><i class="fas fa-sign-in-alt"></i> લોગિન કરો</button>
     </div>
@@ -236,7 +236,7 @@
         const m = document.getElementById('toast-msg');
         t.className = type === 'success' ? 'toast-success show' : 'toast-error show';
         m.innerText = msg;
-        setTimeout(() => { t.classList.remove('show'); }, 3000);
+        setTimeout(() => { t.classList.remove('show'); }, 4000);
     }
 
     // Date Fixer
@@ -276,16 +276,26 @@
         } else { showToast('ખોટો પાસવર્ડ!', 'error'); }
     }
 
+    // --- એડવાન્સ ડેટા લાવી આપતું ફંક્શન ---
     async function fetchCloudData() {
         showToast('Cloud માંથી ડેટા લાવી રહ્યા છીએ... ⏳', 'success');
         try {
-            // Cache કાઢવા માટે પાછળ ટાઈમ લગાડ્યો છે, જેથી સીધો નવો જ ડેટા આવે
-            let tempUrl = CLOUD_URL + "?t=" + new Date().getTime();
-            const response = await fetch(tempUrl);
+            // નવી પદ્ધતિ: ડાયરેક્ટ fetch
+            const response = await fetch(CLOUD_URL, {
+                method: 'GET',
+                redirect: 'follow'
+            });
             
             if (!response.ok) throw new Error("Network Error");
             
-            const data = await response.json();
+            const textData = await response.text();
+            
+            // જો ગૂગલે ભૂલથી HTML ફાઈલ (લોગિન પેજ) મોકલ્યું હોય તો પકડી પાડશે
+            if(textData.trim().startsWith("<")) {
+                throw new Error("Google Script માં પરમિશનની ભૂલ છે! મહેરબાની કરીને 'Anyone' સિલેક્ટ કરો.");
+            }
+            
+            const data = JSON.parse(textData);
             
             db.finance = data.map(item => ({
                 ...item,
@@ -299,7 +309,11 @@
             showToast('ડેટા સફળતાપૂર્વક આવી ગયો! ✅', 'success');
         } catch (e) {
             console.error(e);
-            showToast('Cloud કનેક્શન એરર! લોકલ ડેટા બતાવી રહ્યા છીએ ❌', 'error');
+            if(e.message.includes("પરમિશન")) {
+                showToast("Google Sheet માં પરમિશનની ભૂલ! 'Anyone' સેટ કરો. ❌", 'error');
+            } else {
+                showToast('Cloud એરર! માત્ર લોકલ ડેટા બતાવી રહ્યા છીએ ❌', 'error');
+            }
             db = JSON.parse(localStorage.getItem('alAkshaDB')) || { finance: [] };
             initFilter();
             renderFinance();
@@ -366,7 +380,7 @@
         
         showToast('ક્લાઉડમાં સેવ થાય છે... ⏳', 'success');
         
-        // ડેટા લોકલમાં સેવ કરો અને તરત બતાવો
+        // ડેટા લોકલમાં સેવ કરો
         db.finance.push(entry);
         localStorage.setItem('alAkshaDB', JSON.stringify(db));
         document.getElementById('finance-form').reset();
@@ -375,7 +389,12 @@
 
         // ડેટા Cloud માં મોકલો 
         try {
-            await fetch(CLOUD_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(entry) });
+            await fetch(CLOUD_URL, { 
+                method: 'POST', 
+                mode: 'no-cors', 
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(entry) 
+            });
             showToast('સેવ થઈ ગયું! ✅', 'success');
         } catch(err) { 
             showToast('માત્ર લોકલમાં સેવ થયું ❌', 'error'); 
@@ -499,7 +518,12 @@
             showToast('Cloud માંથી ડીલીટ થાય છે...', 'success');
 
             try {
-                await fetch(CLOUD_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+                await fetch(CLOUD_URL, { 
+                    method: 'POST', 
+                    mode: 'no-cors', 
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(payload) 
+                });
                 showToast('એન્ટ્રી કાયમ માટે ડીલીટ થઈ ગઈ! ✅', 'success');
             } catch(e) {
                 showToast('Cloud માંથી ડીલીટ કરવામાં એરર ❌', 'error');
