@@ -108,7 +108,7 @@
 <div id="login-screen">
     <div class="login-box">
         <h2>AL-AKSHA COMPUTER CENTRE<br><span style="font-size:14px; color:#555;">|| Record Register ||</span></h2>
-        <input type="text" id="username-input" placeholder="Username ">
+        <input type="text" id="username-input" placeholder="Username">
         <input type="password" id="password-input" placeholder="Password">
         <button onclick="checkLogin()"><i class="fas fa-sign-in-alt"></i> લોગિન કરો</button>
     </div>
@@ -280,19 +280,15 @@
     async function fetchCloudData() {
         showToast('Cloud માંથી ડેટા લાવી રહ્યા છીએ... ⏳', 'success');
         try {
-            // નવી પદ્ધતિ: ડાયરેક્ટ fetch
-            const response = await fetch(CLOUD_URL, {
-                method: 'GET',
-                redirect: 'follow'
-            });
-            
-            if (!response.ok) throw new Error("Network Error");
+            // Cache બાયપાસ કરવા માટે
+            let tempUrl = CLOUD_URL + "?t=" + new Date().getTime();
+            const response = await fetch(tempUrl);
             
             const textData = await response.text();
             
             // જો ગૂગલે ભૂલથી HTML ફાઈલ (લોગિન પેજ) મોકલ્યું હોય તો પકડી પાડશે
             if(textData.trim().startsWith("<")) {
-                throw new Error("Google Script માં પરમિશનની ભૂલ છે! મહેરબાની કરીને 'Anyone' સિલેક્ટ કરો.");
+                throw new Error("HTML Error");
             }
             
             const data = JSON.parse(textData);
@@ -309,8 +305,8 @@
             showToast('ડેટા સફળતાપૂર્વક આવી ગયો! ✅', 'success');
         } catch (e) {
             console.error(e);
-            if(e.message.includes("પરમિશન")) {
-                showToast("Google Sheet માં પરમિશનની ભૂલ! 'Anyone' સેટ કરો. ❌", 'error');
+            if(e.message === "HTML Error") {
+                showToast("Google Sheet ની પરમિશન એરર! મહેરબાની કરી 'Anyone' સેટ કરો. ❌", 'error');
             } else {
                 showToast('Cloud એરર! માત્ર લોકલ ડેટા બતાવી રહ્યા છીએ ❌', 'error');
             }
@@ -387,7 +383,7 @@
         initFilter();
         renderFinance();
 
-        // ડેટા Cloud માં મોકલો 
+        // ડેટા Cloud માં મોકલો (કોઈ પણ CORS એરર વગર)
         try {
             await fetch(CLOUD_URL, { 
                 method: 'POST', 
