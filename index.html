@@ -239,7 +239,6 @@
         setTimeout(() => { t.classList.remove('show'); }, 4000);
     }
 
-    // Date Fixer
     function formatDateString(dateStr) {
         if(!dateStr) return "";
         let s = String(dateStr).trim();
@@ -276,19 +275,16 @@
         } else { showToast('ખોટો પાસવર્ડ!', 'error'); }
     }
 
-    // --- એડવાન્સ ડેટા લાવી આપતું ફંક્શન ---
     async function fetchCloudData() {
         showToast('Cloud માંથી ડેટા લાવી રહ્યા છીએ... ⏳', 'success');
         try {
-            // Cache બાયપાસ કરવા માટે
             let tempUrl = CLOUD_URL + "?t=" + new Date().getTime();
-            const response = await fetch(tempUrl);
+            const response = await fetch(tempUrl, { method: 'GET' });
             
             const textData = await response.text();
             
-            // જો ગૂગલે ભૂલથી HTML ફાઈલ (લોગિન પેજ) મોકલ્યું હોય તો પકડી પાડશે
             if(textData.trim().startsWith("<")) {
-                throw new Error("HTML Error");
+                throw new Error("HTML");
             }
             
             const data = JSON.parse(textData);
@@ -305,7 +301,7 @@
             showToast('ડેટા સફળતાપૂર્વક આવી ગયો! ✅', 'success');
         } catch (e) {
             console.error(e);
-            if(e.message === "HTML Error") {
+            if(e.message === "HTML") {
                 showToast("Google Sheet ની પરમિશન એરર! મહેરબાની કરી 'Anyone' સેટ કરો. ❌", 'error');
             } else {
                 showToast('Cloud એરર! માત્ર લોકલ ડેટા બતાવી રહ્યા છીએ ❌', 'error');
@@ -376,14 +372,12 @@
         
         showToast('ક્લાઉડમાં સેવ થાય છે... ⏳', 'success');
         
-        // ડેટા લોકલમાં સેવ કરો
         db.finance.push(entry);
         localStorage.setItem('alAkshaDB', JSON.stringify(db));
         document.getElementById('finance-form').reset();
         initFilter();
         renderFinance();
 
-        // ડેટા Cloud માં મોકલો (કોઈ પણ CORS એરર વગર)
         try {
             await fetch(CLOUD_URL, { 
                 method: 'POST', 
@@ -425,7 +419,6 @@
                             let g = parseFloat(item.govFee) || 0;
                             let p = (item.type === 'income') ? a - g : 0;
                             
-                            // રોકડ અને UPI માં પૂરી રકમ જ જશે
                             if(item.type === 'income') {
                                 item.mode === 'cash' ? cash += a : upi += a; 
                                 profit += p;
@@ -496,7 +489,6 @@
         });
     }
 
-    // CLOUD DELETE FUNCTION
     async function delRec(i) { 
         if(confirm('શું તમે ખરેખર આ એન્ટ્રી ડીલીટ કરવા માંગો છો? (આ એન્ટ્રી Cloud માંથી પણ ડીલીટ થઈ જશે)')) { 
             let item = db.finance[i];
@@ -574,7 +566,6 @@
         showToast('એક્સેલ ડાઉનલોડ થઈ રહી છે...', 'success');
     }
 
-    // PDF PRINT WITH EXACT TOTALS AT THE BOTTOM
     function printReportPDF() {
         let month = document.getElementById('month-filter').value;
         let originalTable = document.getElementById('main-table');
