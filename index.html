@@ -48,8 +48,6 @@
 
         /* Main App Header */
         #main-app { display: none; max-width: 1200px; margin: auto; padding: 20px; position: relative; z-index: 1;}
-        
-        /* SLEEK STATIC HEADING (Removed Live Animation) */
         .main-heading { text-align: center; background: var(--primary); color: white; font-size: 28px; font-weight: 800; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); margin-bottom: 25px; }
 
         /* Tabs Menu */
@@ -101,7 +99,6 @@
         .report-btn { padding: 15px 25px; border:none; border-radius: 8px; cursor:pointer; font-weight:bold; font-size: 16px; color: white; margin-right: 15px; margin-bottom: 15px; display: inline-block;}
         .r-excel { background: #34a853; }
         .r-pdf { background: #ea4335; }
-        .r-tele { background: #0088cc; }
     </style>
 </head>
 <body>
@@ -111,7 +108,7 @@
 <div id="login-screen">
     <div class="login-box">
         <h2>AL-AKSHA COMPUTER CENTRE<br><span style="font-size:14px; color:#555;">|| Record Register ||</span></h2>
-        <input type="text" id="username-input" placeholder="Username (9638730186)">
+        <input type="text" id="username-input" placeholder="Username">
         <input type="password" id="password-input" placeholder="Password">
         <button onclick="checkLogin()"><i class="fas fa-sign-in-alt"></i> લોગિન કરો</button>
     </div>
@@ -213,7 +210,6 @@
         <h3><i class="fas fa-file-invoice"></i> બેકઅપ અને રિપોર્ટ</h3>
         <button onclick="exportExcel()" class="report-btn r-excel"><i class="fas fa-file-excel"></i> Excel Download</button>
         <button onclick="printReportPDF()" class="report-btn r-pdf"><i class="fas fa-file-pdf"></i> આ મહિનાનો PDF રિપોર્ટ</button>
-        <button onclick="sendTelegram()" class="report-btn r-tele"><i class="fab fa-telegram-plane"></i> Telegram રિપોર્ટ</button>
     </div>
 </div>
 
@@ -275,7 +271,6 @@
             const response = await fetch(CLOUD_URL);
             const data = await response.json();
             
-            // ડેટા ખેંચતી વખતે બધા આંકડાઓને ફરજિયાત Number બનાવીએ છીએ જેથી ગણતરીમાં ભૂલ ન પડે
             db.finance = data.map(item => ({
                 ...item,
                 date: formatDateString(item.date),
@@ -343,6 +338,7 @@
         let formattedDate = ("0" + today.getDate()).slice(-2) + "/" + ("0"+(today.getMonth()+1)).slice(-2) + "/" + today.getFullYear();
 
         const entry = {
+            action: 'add',
             date: formattedDate,
             desc: document.getElementById('f-desc').value,
             type: document.getElementById('f-type').value,
@@ -362,7 +358,6 @@
         try {
             await fetch(CLOUD_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(entry) });
             showToast('સેવ થઈ ગયું! ✅', 'success');
-            setTimeout(fetchCloudData, 2000); 
         } catch(err) { 
             showToast('માત્ર લોકલમાં સેવ થયું ❌', 'error'); 
         }
@@ -372,7 +367,6 @@
         const filterVal = document.getElementById('month-filter').value;
         const months = ["જાન્યુઆરી", "ફેબ્રુઆરી", "માર્ચ", "એપ્રિલ", "મે", "જૂન", "જુલાઈ", "ઓગસ્ટ", "સપ્ટેમ્બર", "ઓક્ટોબર", "નવેમ્બર", "ડિસેમ્બર"];
         
-        // બધી ગણતરી Number માં જ થશે
         let cash = 0, upi = 0, profit = 0, udhaar = 0;
         let tb = document.getElementById('finance-table');
         tb.innerHTML = '';
@@ -393,7 +387,6 @@
                         let itemMonthYear = months[mIdx] + " " + parts[2].substring(0,4);
                         
                         if(itemMonthYear === filterVal) {
-                            // સરવાળા-બાદબાકી માટે ખાસ parseFloat
                             let a = parseFloat(item.amount) || 0;
                             let g = parseFloat(item.govFee) || 0;
                             let p = (item.type === 'income') ? a - g : 0;
@@ -434,7 +427,6 @@
             }
         });
         
-        // ફાઇનલ આંકડા બતાવવા
         document.getElementById('bal-cash').innerText = cash;
         document.getElementById('bal-upi').innerText = upi;
         document.getElementById('bal-profit').innerText = profit;
@@ -466,11 +458,32 @@
         });
     }
 
-    function delRec(i) { 
-        if(confirm('શું તમે ખરેખર ડીલીટ કરવા માંગો છો? (આ માત્ર લોકલમાં ડીલીટ થશે, કાયમી ડીલીટ માટે Google Sheet માંથી લાઈન કાઢવી પડશે)')) { 
+    // CLOUD DELETE FUNCTION
+    async function delRec(i) { 
+        if(confirm('શું તમે ખરેખર આ એન્ટ્રી ડીલીટ કરવા માંગો છો? (આ એન્ટ્રી Cloud માંથી પણ કાયમ માટે ડીલીટ થઈ જશે)')) { 
+            let item = db.finance[i];
+            
+            // Cloud માટે પેલોડ તૈયાર કરો
+            const payload = {
+                action: 'delete',
+                date: item.date,
+                desc: item.desc,
+                amount: item.amount
+            };
+
+            // Local માંથી કાઢી નાખો
             db.finance.splice(i, 1); 
             localStorage.setItem('alAkshaDB', JSON.stringify(db)); 
             renderFinance(); 
+            showToast('Cloud માંથી ડીલીટ થાય છે...', 'success');
+
+            // Cloud માંથી ડીલીટ કરો
+            try {
+                await fetch(CLOUD_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+                showToast('એન્ટ્રી કાયમ માટે ડીલીટ થઈ ગઈ! ✅', 'success');
+            } catch(e) {
+                showToast('Cloud માંથી ડીલીટ કરવામાં એરર ❌', 'error');
+            }
         } 
     }
 
@@ -520,34 +533,56 @@
         showToast('એક્સેલ ડાઉનલોડ થઈ રહી છે...', 'success');
     }
 
+    // PDF PRINT WITH EXACT TOTALS
     function printReportPDF() {
         let month = document.getElementById('month-filter').value;
-        let tableHTML = document.getElementById('main-table').outerHTML;
+        let originalTable = document.getElementById('main-table');
+        let tableClone = originalTable.cloneNode(true);
+
+        // ડેશબોર્ડના આંકડા બેઠા લેવા
+        let tCash = document.getElementById('bal-cash').innerText;
+        let tUpi = document.getElementById('bal-upi').innerText;
+        let tProfit = document.getElementById('bal-profit').innerText;
+        let tUdhaar = document.getElementById('bal-udhaar').innerText;
+
+        // નીચે કુલ હિસાબની લાઈન ઉમેરવા
+        let tfoot = document.createElement('tfoot');
+        tfoot.innerHTML = `<tr style="background:#e8f0fe; font-weight:bold; border-top:3px solid #1a73e8;">
+            <td colspan="4" style="text-align:right; font-size:16px;">મહિનાનો કુલ હિસાબ (Total):</td>
+            <td style="font-size:16px; color:#1a73e8;">રોકડ: ₹${tCash} <br> UPI: ₹${tUpi}</td>
+            <td style="font-size:16px; color:#34a853;">નફો: ₹${tProfit} <br> ઉધાર: ₹${tUdhaar}</td>
+        </tr>`;
+        tableClone.appendChild(tfoot);
+
+        // પ્રિન્ટમાંથી 'એક્શન' વાળું છેલ્લું ખાનું કાઢવા
+        let ths = tableClone.querySelectorAll('thead th');
+        if(ths.length > 0) ths[ths.length - 1].remove();
+
+        let bodyRows = tableClone.querySelectorAll('tbody tr');
+        bodyRows.forEach(tr => {
+            let tds = tr.querySelectorAll('td');
+            if(tds.length > 0) tds[tds.length - 1].remove();
+        });
+
         let printWindow = window.open('', '_blank');
         printWindow.document.write(`
             <html><head><title>Monthly Report - Al-Aksha</title>
             <style>
                 body { font-family: Arial, sans-serif; padding: 20px; }
-                h2 { color: #1a73e8; text-align: center; }
+                h2 { color: #1a73e8; text-align: center; border-bottom: 2px solid #1a73e8; padding-bottom: 10px;}
                 table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+                th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
                 th { background: #f4f4f4; }
                 .hide-row { display: none; }
-                button { display: none; }
             </style>
             </head><body>
                 <h2>AL-AKSHA COMPUTER CENTRE - Monthly Report (${month})</h2>
-                ${tableHTML}
+                ${tableClone.outerHTML}
                 <script>setTimeout(() => { window.print(); }, 500);<\/script>
             </body></html>
         `);
         printWindow.document.close();
         showToast('PDF રિપોર્ટ બની રહ્યો છે...', 'success');
-    }
-
-    function sendTelegram() {
-        let text = `AL-AKSHA Report (${document.getElementById('month-filter').value})\nCash: ₹${document.getElementById('bal-cash').innerText}\nUPI: ₹${document.getElementById('bal-upi').innerText}\nProfit: ₹${document.getElementById('bal-profit').innerText}`;
-        window.open(`https://t.me/share/url?url=&text=${encodeURIComponent(text)}`);
     }
 </script>
 </body>
